@@ -17,7 +17,7 @@
 #define	AUTOCAL			iobase[1] + 6			// Badr1 + 6
 #define DA_CTLREG		iobase[1] + 8		    // Badr1 + 8
 
-#define	AD_DATA		    iobase[2] + 0			// Badr2 + 0
+#define	AD_DATA		    	iobase[2] + 0			// Badr2 + 0
 #define	AD_FIFOCLR		iobase[2] + 2			// Badr2 + 2
 
 #define	TIMER0			iobase[3] + 0			// Badr3 + 0
@@ -33,7 +33,7 @@
 #define	PACER3			iobase[3] + 0xa			// Badr3 + a
 #define	PACERCTL		iobase[3] + 0xb			// Badr3 + b
 
-#define DA_Data		    iobase[4] + 0			// Badr4 + 0
+#define DA_Data		    	iobase[4] + 0			// Badr4 + 0
 #define	DA_FIFOCLR		iobase[4] + 2			// Badr4 + 2
 
 #define PI              acos(-1)
@@ -334,9 +334,9 @@ void* PeripheralInputs (void *){
 //Display help menu
 void displayHelp() {
     printf("\n*************\n");
-	printf("Help menu\n");
-	printf("*************\n");
-	printf("%*s\t\t%s", 6, "1", "Show current devices' configurations.\n");
+    printf("Help menu\n");
+    printf("*************\n");
+    printf("%*s\t\t%s", 6, "1", "Show current devices' configurations.\n");
     printf("%*s\t\t%s", 6, "2" ,"Show current devices' statuses.\n");
     printf("%*s\t\t%s", 6, "3", "Change the configurations.\n");
     printf("%*s\t\t%s", 6, "4", "Export configurations or waveforms.\n");
@@ -679,7 +679,7 @@ int main(int argc, char** argv) {
     //PCI device variable
     struct pci_dev_info info;
     void *hdl;
-	int rc;
+    int rc;
 
     uintptr_t dio_in;
     uint16_t adc_in;
