@@ -309,7 +309,7 @@ if(ThreadCtl(_NTO_TCTL_IO,0)==-1) {
   			if (count == 0x01)
   			{
   				DA0_freq = (float)adc_in * 1000/65535;							//Da0 freq
-  				Da0_freq = old_to_new();										//compare free values for resolution
+  				DA0_freq = old_to_new();										//compare free values for resolution
   				printf("Freq is %.2f Hz\n\n", DA0_freq);
   			}
   															
