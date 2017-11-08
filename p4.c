@@ -163,7 +163,7 @@ while(1)
 								printf("Amp: %f, Freq: %f\n", DA0_amp, DA0_freq);
 								//funcADC0(iobase, dio_in);
 								break;		
-			default: 			printf("error\n");					 		
+			default: 			printf("Invalid Option!\n");					 		
 		}
 		truth = dio_in;
 	}
