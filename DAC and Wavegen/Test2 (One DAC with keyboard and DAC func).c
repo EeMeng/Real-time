@@ -198,7 +198,7 @@ void CLManager (int argc, char **argv){
 // Change the bipolar/unipolar mode based on mean and amplitude
 // to give best resolution
 void chooseBestRes(){
-    if(hasNegative())
+    if(hasNegative()){
         if(checkAbsMax(DAC.mean, DAC.amp)==1){
             DAC.plus=(0x0000<<DAC.identity);
             DAC.DAC_mode = 0;
@@ -209,7 +209,8 @@ void chooseBestRes(){
             DAC.DAC_mode = 1;
             DAC.output_res=305.14;
         }
-    else
+    }
+    else{
         if(checkAbsMax(DAC.mean, DAC.amp)==1){
             DAC.plus=(0x0200<<DAC.identity);
             DAC.DAC_mode = 2;
@@ -220,6 +221,7 @@ void chooseBestRes(){
             DAC.DAC_mode = 3;
             DAC.output_res=152.59;
         }
+    }
     return;
 }
 // Waveform generator
@@ -237,7 +239,7 @@ void WaveformGen (){
                           x= -amp               (T/2<t<T)
     */
     chooseBestRes();
-    DAC.period=1/DAC.freq;
+    //DAC.period=1/DAC.freq;
     res = DAC.output_res/1000000;
     if(DAC.DAC_mode<2)
         offset+=0x7FFF;
