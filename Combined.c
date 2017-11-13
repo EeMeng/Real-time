@@ -41,6 +41,7 @@
 
 #define HIGHESTFREQ 1800
 #define FIFO_DELAY 6500
+#define THRESHOLD 50
 
 //struct for DAC waveform
 typedef struct {
@@ -71,14 +72,18 @@ typedef struct {
 int badr[5];
 uintptr_t iobase[6];
 
+struct pci_dev_info info;
+void *hdl;
+
 // Program global variables
 bool isOperating = true;
 bool keyboard_enable = false;
 uintptr_t dio_in;                                       // digital input output
 uint16_t adc_in;                                        // reading potentialmeter
+bool ADC_Refresh;
 
 // DACField struct global variables
-DACField DAC={true, true, 0, 1, {}, 0, 1, 100, 0, 0, 0, 10, 2};
+DACField DAC={true, false, 0, 1, {}, 0, 1, 100, 0, 0, 0, 10, 2};
 
 //Mutexes and conditional variables
 pthread_mutex_t MainMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -88,8 +93,9 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 //Function Declaration for Housekeeping
 
 //ADC & GPIO & Manager
-void* switches(void *arg);
-void check_potentiometer(struct ChangeField* CField);
+void switches();
+void check_potentiometer(ChangeField* CField);
+void ADC_Help();
 
 //DAC
 void chooseBestRes(int z);
@@ -113,7 +119,7 @@ void* MainIO (void *pointer);
 void change(bool onSignal, int wvty, float f, float m, float a);
 bool hasNegative();
 float absMaximum();
-float old_to_new(float old_val);
+unsigned int old_to_new(unsigned int old_val, unsigned int new_val);
 float checkValidFloat();
 int checkValidInt();
 void setChangeField(ChangeField* CF);
@@ -173,13 +179,10 @@ void init()
 //*************************************************************//
 int main(int argc, char** argv) {
 
-    uintptr_t dio_in;
-    uint16_t adc_in;
-    unsigned short chan;
-    unsigned int rc, i;
 
+	int rc, i;
     pthread_attr_t attr;
-    pthread_t thread[3];
+    pthread_t thread[2];
 
     //Create joinable attribute
     pthread_attr_init(&attr);
@@ -197,48 +200,20 @@ int main(int argc, char** argv) {
     3. ADC and Switches
     */
 
-    /*
-    for(i=0;i<2;i++){
+ for(i=0;i<2;i++){
         switch (i){
             case 0:{rc = pthread_create(&thread[i], &attr, &WaveGenManager, NULL);
                     break;}
             case 1:{rc = pthread_create(&thread[i], &attr, &MainIO, NULL);
                     break;}
-            case 2:{rc = pthread_create(&thread[i], &attr, &PeripheralInputs, NULL);
-                    break;}
         }
         if (rc){
             printf("pthread_create() #%d return error! Code %d\n", rc);
             exit(-1);
         }
     }
-    */
-
-    rc = pthread_create(&thread[0], &attr, &WaveGenManager, NULL);
-
-    if (rc){
-            printf("pthread_create() #%d return error! Code %d\n", rc);
-            exit(-1);
-        }
-
-    while(isOperating){
-        rc = pthread_create(&thread[1], &attr, &PeripheralInputs, NULL);
-        if (rc){
-            printf("pthread_create() #%d return error! Code %d\n", rc);
-            exit(-1);
-        }
-        pthread_join(thread[1], NULL);
-        rc = pthread_create(&thread[2], &attr, &MainIO, NULL);
-        if (rc){
-            printf("pthread_create() #%d return error! Code %d\n", rc);
-            exit(-1);
-        }
-    pthread_join(thread[2], NULL);
-    }
-
     pthread_attr_destroy(&attr);
 
-    /*
     //Joining MainIO input
     for(i=0;i<2;i++){
         rc = pthread_join(thread[i], NULL);
@@ -247,10 +222,10 @@ int main(int argc, char** argv) {
             exit(-1);
         }
     }
-    */
 
     pci_detach_device(hdl);
     return 0;
+
 }
 
 //*************************************************************//
@@ -272,17 +247,19 @@ void change(bool onSignal, int wvty, float f, float m, float a){
 //*************************************************************//
 void CLManager (int argc, char **argv){
     int counter, i, temp2;
+    ChangeField CField;
     int waveform_type=0;    // counter for argument
     float temp,freq,mean,amp;    // temporary storage for argument values
     char* endptr;
-    for(counter=1;counter<argc;counter++){
-        if((counter%5) ==1){
+    setChangeField(&CField);
+    for(counter=1;counter < argc;counter++){
+        if((counter%6) ==1){
             if(strcmp(argv[counter],"-sin") == 0)
-                waveform_type=1;
+                CField.waveform_type=1;
             else if(strcmp(argv[counter],"-tri") == 0)
-                waveform_type=2;
+                CField.waveform_type=2;
             else if(strcmp(argv[counter],"-squ") == 0)
-                waveform_type=3;
+                CField.waveform_type=3;
             else
                 printf("Invalid waveform.\n");
         }
@@ -291,22 +268,22 @@ void CLManager (int argc, char **argv){
             if(*endptr == '\0'){
                 switch(counter%5){
                     case 2: {
-                        if(temp>0 && temp <1800) //a bit low
-                            freq = temp;
+                        if(temp>0 && temp <1000) //a bit low
+                            CField.freq = temp;
                         else
-                            printf("Frequency must be in the range (0, 1800) Hz\n");
+                            printf("Frequency must be in the range (0, 1000) Hz\n");
                         break;
                     }
                     case 3: {
-                        if(fabs(temp)<=10)
-                            mean = temp;
+                        if(fabs(temp)<=5)
+                            CField.mean = temp;
                         else
-                            printf("Mean value must be in the range [-10,10]\n");
+                            printf("Mean value must be in the range [-5,5]\n");
                         break;
                     }
                     case 4: {
-                        if(temp < 10 && temp>=0)
-                            amp = temp;
+                        if(temp < 5 && temp>=0)
+                            CField.amp = temp;
                         else
                             printf("Amplitude must be in the range [0,5]\n");
                         break;
@@ -315,15 +292,24 @@ void CLManager (int argc, char **argv){
             }
             else
                 printf("Invalid input: %s\n", argv[counter]);
+
         }
-        else {
-            temp2 = strtol(argv[counter], &endptr, 2);
-            if(temp2==1)
-                change(true, waveform_type, freq, mean, amp);
-            else
-                change(false, waveform_type, freq, mean, amp);
+         else {
+            CField.isOn = strtol(argv[counter], &endptr, 2);
+            if(!(CField.isOn == 0 || CField.isOn == 1))
+            {
+            	printf("On/Off must be in the range 0 or 1\n");
+            	printf("Setting Off as default.\n");
+            	CField.isOn = 0;
+            }
+            pthread_mutex_lock(&PushMutex);
+    		change(CField.isOn, CField.waveform_type, CField.freq, CField.mean, CField.amp);
+    		pthread_mutex_unlock(&PushMutex);
+      
         }
     }
+	          
+    
     printf("Ending command line manager function...\n");
     sleep(1);
     return;
@@ -377,15 +363,6 @@ void WaveformGen (int z){
     int i=0;
     double delta_incr, dummy, res;
     unsigned short offset=0;
-    /*
-    value = mean + x
-        sine wave       : x= amp*sin(2*PI*freq*t)
-        triangular wave : x= (4*amp/T)*t        (0<t<T/4)
-                          x= 2*amp-(4*amp/T)*t  (T/4<t<3*T/4)
-                          x= -4*amp+(4*amp/T)*t (3*T/4<t<T)
-        square wave     : x= amp                (0<t<T/2)
-                          x= -amp               (T/2<t<T)
-    */
     chooseBestRes(z);
     DAC.period=1/DAC.freq;
     res = DAC.output_res/1000000;
@@ -393,7 +370,7 @@ void WaveformGen (int z){
         offset+=0x7FFF;
     switch (DAC.waveform_type){
         case 1: {// sine wave waveform creation
-                 printf("\nSetting Sine Wave for DAC[%d]\n", z);
+                 //printf("\nSetting Sine Wave for DAC[%d]\n", z);
                  delta_incr=2.0*PI/DAC.samples_per_period;	// increment
                  for(i=0;i<DAC.samples_per_period;i++) {
                      dummy= (sinf((float)(i*delta_incr)))* DAC.amp + DAC.mean;
@@ -403,7 +380,7 @@ void WaveformGen (int z){
                  break;
                 }
         case 2: {// triangular wave waveform creation
-                 printf("\nSetting Triangular Wave for DAC[%d]\n", z);
+                 //printf("\nSetting Triangular Wave for DAC[%d]\n", z);
                  delta_incr=4*DAC.amp/DAC.samples_per_period;	// increment
                  for(i=0;i<DAC.samples_per_period/4;i++) {
                      dummy= delta_incr*i +DAC.mean;
@@ -423,7 +400,7 @@ void WaveformGen (int z){
                  break;
                 }
         case 3: {// square wave waveform creation
-                 printf("\nSetting Square Wave for DAC[%d]\n", z);
+                 //printf("\nSetting Square Wave for DAC[%d]\n", z);
                  for(i=0;i<DAC.samples_per_period/2;i++) {
                      dummy= DAC.amp + DAC.mean;
                      dummy= offset + dummy/res;
@@ -491,17 +468,28 @@ void* WaveGenManager (void * pointer){int i=0;
 //        Input manager for switches and analogue inputs
 //*************************************************************//
 
-void * switches(void *arg)                              // thread to control the switch
+void ADC_Help(){
+		printf("Waveform generation.\n");
+        printf("Switches are labelled 1 to 4 from left to right.\n");
+        printf("Switch 1 - Toggle switches on and off.\n");
+        printf("Switch 2 - Toggle Amplitude(0) or Mean(1) Variation.\n");
+        printf("Switch 3 & 4 - Toggle Wave Shape\n\n");
+        printf("  Wave       Switch 3       Switch 4\n");
+        printf("========     =========     =========\n");
+        printf("  Sine          1              1\n");
+        printf("Triangle        0              1\n");
+        printf(" Square         1              0\n");
+        printf("  Off           0              0\n");
+        printf("====================================\n\n");
+}
+
+void switches()                              // thread to control the switch
 {
-struct ChangeField CField;
+ChangeField CField;
 int truth = 0;
 while(1)
 {
-//*****************************************************************************
-//Digital Port Functions
-//*****************************************************************************
-
-    setChangeField(&CField);
+  	setChangeField(&CField);
     //printf("\nDIO Functions\n");
     out8(DIO_CTLREG,0x90);                  // Port A : Input,  Port B : Output,  Port C (upper | lower) : Output | Output
 
@@ -513,90 +501,60 @@ while(1)
     if ((dio_in & 0x08)==0)
     {
         printf("The board is off.\n");
-        isOperating = true;
-        return NULL;
+        return;
     }
     else if(truth != dio_in)
     {
-        printf("Waveform generation.\n");
-        printf("Switches are labelled 1 to 4 from left to right.\n");
-        printf("Switch 1 - Toggle switches on and off.\n");
-        printf("Switch 2 - Toggle Amplitude(0) or Mean(1) Variation.\n");
-        printf("Switch 3 & 4 - Toggle Wave Shape\n\n");
-        printf("  Wave       Switch 3       Switch 4\n");
-        printf("========     =========     =========\n");
-        printf("  Sine          1              1\n");
-        printf("Triangle        0              1\n");
-        printf(" Square         1              0\n");
-        printf("====================================\n\n");
         truth = dio_in;
+        ADC_Refresh = true;
     }
+    else ADC_Refresh = false;
     check_potentiometer(&CField);
-    switch(dio_in)                                                              //dio_in defines the mode below
+     switch(dio_in & 0x03)                                                              //dio_in defines the mode below
         {
-            case 0xf9:          CField.waveform_type = 2;
-                                printf("Selection: Triangle Wave\n");               // switch cases to define wave
-                                printf("Varying: Amplitude\n");
-                                printf("Amp: %f, Freq: %f\n", DAC.amp, DAC.freq);
-                                break;
-            case 0xfa:          CField.waveform_type = 3;
-                                printf("Selection: Square Wave\n");
-                                printf("Varying: Amplitude\n");
-                                printf("Amp: %f, Freq: %f\n", DAC.amp, DA0_Dfreq);
-                                break;
-            case 0xfb:          CField.waveform_type = 1;
-                                printf("Selection: Sine Wave\n");
-                                printf("Varying: Amplitude\n");
-                                printf("Amp: %f, Freq: %f\n", DAC.amp, DAC.freq);
-                                break;
-            case 0xfd:          CField.waveform_type = 2;
-                                printf("Selection: Triangle Wave\n");
-                                printf("Varying: Mean\n");
-                                printf("Amp: %f, Freq: %f\n", DAC.amp, DAC.freq);
-                                break;
-            case 0xfe:          CField.waveform_type = 3;
-                                printf("Selection: Square Wave\n");
-                                printf("Varying: Mean\n");
-                                printf("Amp: %f, Freq: %f\n", DAC.amp, DAC.freq);
-                                break;
-            case 0xff:          CField.waveform_type = 1;
-                                printf("Selection: Sine Wave\n");
-                                printf("Varying: Mean\n");
-                                printf("Amp: %f, Freq: %f\n", DAC.amp, DAC.freq);
-                                break;
-            default:            printf("Invalid Option!\n");
+            case 0x00:    CField.isOn = 0;  break;
+            case 0x01:    CField.waveform_type = 2; CField.isOn = 1; break;
+            case 0x02:    CField.waveform_type = 3; CField.isOn = 1; break;
+            case 0x03:    CField.waveform_type = 1; CField.isOn = 1; break;
         }
+    if(ADC_Refresh)
+    {
     pthread_mutex_lock(&PushMutex);
     change(CField.isOn, CField.waveform_type, CField.freq, CField.mean, CField.amp);
     pthread_mutex_unlock(&PushMutex);
+    printf("\f");
+    ADC_Help();
+    switch(dio_in & 0x03)                                                              //dio_in defines the mode below
+        {
+            case 0: 	printf("Selection: Off\n"); break;
+            case 1:		printf("Selection: Sine Wave\n"); break;
+            case 2:    	printf("Selection: Triangle Wave\n"); break;
+            case 3:    	printf("Selection: Square Wave\n"); break;
+            default:    printf("Invalid Option!\n"); break;
+        }
+    }
+    switch(dio_in & 0x04)
+    {
+    	case 0x04: printf("Varying: Mean\n"); break;
+    	case 0x00: printf("Varying: Amplitude\n"); break;
+    }
+    printf("Mean:%f, Amp: %f, Freq: %f\n", DAC.mean, DAC.amp, DAC.freq);
+    ADC_Refresh = false;
     delay(100);
 }
-    return NULL;
+    return;
 }
 
-float old_to_new(float old_val)                                                         // comparative function
+unsigned int old_to_new(unsigned int  new_val,unsigned int old_val)                                                         // comparative function
 {
-    unsigned short chan;
-    unsigned int count = 0x01;
-    float new_val;
-    while(count <0x02)
-        {
-            chan = ((count & 0x0f)<<4) | (0x0f & count);
-            out16(MUXCHAN,0x0D00|chan);     // Set channel   - burst mode off.
-            delay(1);                                           // allow mux to settle
-            out16(AD_DATA,0);                           // start ADC
-            while(!(in16(MUXCHAN) & 0x4000));
-            adc_in=in16(AD_DATA);
-
-            new_val = (float)adc_in*1000/65535;
-            count++;
-        }
-
-    if ((abs(new_val-old_val))<50)return old;
-    else return new_val;
+   	if ((abs(new_val-old_val))< THRESHOLD)return old_val;
+    else {
+    ADC_Refresh = true;
+    return new_val;
+    }
 }
 
-void check_potentiometer(struct ChangeField* CField)                                               // pontentiometer thread
+void check_potentiometer(ChangeField* CField)                                               // pontentiometer thread
 {
     unsigned short chan;
     unsigned int count;
@@ -613,7 +571,7 @@ void check_potentiometer(struct ChangeField* CField)                            
                                                         // SW trig |Diff-Uni 5v| scan 0-7| Single - 16 channels
     ampmean=dio_in;
     count=0x00;
-    if (ampmean == 0xf9)                                // Change Amp Value
+    if (!(dio_in & 0x04))                                // Change Amp Value
     {
         while(count <0x02)
         {
@@ -623,15 +581,15 @@ void check_potentiometer(struct ChangeField* CField)                            
             out16(AD_DATA,0);                           // start ADC
             while(!(in16(MUXCHAN) & 0x4000));
             adc_in=in16(AD_DATA);
-            if (count == 0x00)CField.amp = old_to_new((float)adc_in * 5/65535);
-            if (count == 0x01)CField.freq = old_to_new((float)adc_in * 1000/65535);                                // Da0 freq
-            fflush( stdout );
+            if (count == 0x00)CField->amp = old_to_new(adc_in, DAC.amp*65535.0/5.0)*5.0/65535.0;
+	        if (count == 0x01)CField->freq = old_to_new(adc_in, DAC.freq*65535.0/1000.0)*1000.0/65535.0;                                // Da0 freq
+           
             count++;
             //                                      // Write to MUX register - SW trigger, UP, DE, 5v, ch 0-7
         }
     }
 
-    if (ampmean == 0xfd)                                // Change Mean Value
+    else if(dio_in & 0x04)                              // Change Mean Value
     {
         while(count <0x02)
         {
@@ -641,15 +599,14 @@ void check_potentiometer(struct ChangeField* CField)                            
             out16(AD_DATA,0);                           // start ADC
             while(!(in16(MUXCHAN) & 0x4000));
             adc_in=in16(AD_DATA);
-            if (count == 0x00)CField.mean = old_to_new((float)adc_in * 10/65535 - 5.0);                        //Da0_mean mean mode base on switch 2
-            if (count == 0x01)CField.freq = old_to_new((float)adc_in * 1000/65535);                                     //compare free values for resolution
-            fflush( stdout );
+            if (count == 0x00)CField->mean = old_to_new(adc_in, (DAC.mean + 5)*65535.0/10.0)*10.0/65535.0 - 5;                        //Da0_mean mean mode base on switch 2
+            if (count == 0x01)CField->freq = old_to_new(adc_in, DAC.freq*65535.0/1000.0)*1000.0/65535.0;                                     //compare free values for resolution
             count++;
             //                                      // Write to MUX register - SW trigger, UP, DE, 5v, ch 0-7
         }
     }
-    change()
-    return NULL;
+    if(CField->freq < 0.1)CField->freq = 0.1;
+    return;
   }
 
 
@@ -662,12 +619,12 @@ void displayHelp() {
 	printf("Help menu\n");
 	printf("*************\n");
 	printf("%*s\t\t%s", 6, "1", "Show current devices' configurations.\n");
-    printf("%*s\t\t%s", 6, "2" ,"Show current devices' statuses.\n");
+    printf("%*s\t\t%s", 6, "2" ,"Use Potentiometer and Flip switches.\n");
     printf("%*s\t\t%s", 6, "3", "Change the configurations.\n");
     printf("%*s\t\t%s", 6, "4", "Export configurations or waveforms.\n");
     printf("%*s\t\t%s", 6, "5", "Import configurations.\n");
     printf("%*s\t\t%s", 6, "6", "Halt all operations.\n");
-    printf("%*s\t\t%s", 6, "7", "Exit program\n");
+    printf("%*s\t\t%s", 6, "7", "Display help.\n");
     printf("%*s\t\t%s", 6, "8", "Exit program\n");
 
 }
@@ -687,10 +644,8 @@ int checkInput(char* in) {
     temp = strtol(in, &endptr, 10);
     // check if valid integer is inputted
     if(*endptr == '\0'){
-        if(temp>0 && temp <7)
+        if(temp>0 && temp <9)
             return temp;
-        else if(temp==7)
-            return 66;
     }
     else if(strcmp(in,"help")==0)
         return 7;
@@ -724,7 +679,7 @@ void importConfig(){
 	FILE* fd;
 	char filename[30];
 	const char source[10]="imported";
-	char input100[100]={'\0'};
+	char buffer[100]={'\0'};
 	char *input[12];
     printf("Please enter filename (\".txt\" is added at the end): ");
     fflush(stdout);
@@ -736,16 +691,20 @@ void importConfig(){
         return;
     }
     input[0]=&source;
-    input[j]=&input100[0];
+    input[j]=&buffer[0];
     while(1){
         if(isNull){
-            input[++j]=&input100[i];
+            input[++j]= &buffer[i];
             isNull=false;
+            
         }
-        if(fscanf(fd, "%c", &input100[i])==EOF)
-            break;
-        if(input100[i]=='\n' || input100[i]==' '){
-            input100[i]='\0';
+         if(fscanf(fd, "%c", &buffer[i])==EOF)
+         {
+         	input[++j]= &buffer[i];
+         	break;
+         }
+        if(buffer[i]=='\n' || buffer[i]==' '){
+            buffer[i]='\0';
             isNull=true;
         }
         i++;
@@ -777,8 +736,8 @@ void exportConfig(){
             case 2:{fprintf(fd, "%s ", "-tri"); break;}
             case 3:{fprintf(fd, "%s ", "-squ"); break;}
         }
-        fprintf(fd, "%.2f %.2f\n",
-                DAC.freq, DAC.mean);
+        fprintf(fd, "%.2f %.2f %.2f %d\n",
+                DAC.freq, DAC.mean, DAC.amp, DAC.isOn);
 	fflush(fd);
     close((int)fd);
     printf("Configuration saved to file.\n");
@@ -890,7 +849,7 @@ void changeParam(){
                         printf("Enter amplitude (V): ");
                         if((temp=checkValidFloat())>=0)
                         if(temp < 10 && temp>=0){
-                            CField.mean=temp;
+                            CField.amp=temp;
                             printf("\nChanged amplitude of DAC[%d]\n", 0);
                         }
                         else
@@ -948,17 +907,18 @@ void stopOps(){
 //Main function for keyboard thread
 void* MainIO (void *pointer){
     char input10[10];
-    char* input = &input10;
+    char* input = input10;
     sleep(1);  //wait for WaveGenManager to finish its configuration
     while (1) {
-            delay(100);
+            delay(500);
+            printf("\f");
     	displayHelp();
 		getInput(input);
 		switch (checkInput(input)) {
 		    // case 1 - print current devices' configurations.
 			case 1: {   showConfig(); break; }
             // case 2 - print current devices' statuses.
-			//case 2: {   showStatus();       break; }
+			case 2: {   switches();       break; }
 			// case 3 - change the configurations.
 			case 3: {   changeParam();       break; }
 			// case 4 - export configurations or waveforms.
@@ -968,17 +928,15 @@ void* MainIO (void *pointer){
 			// case 6 - halt all operations.
 			case 6: {   stopOps(); break; }
             // case 7 - Switch to switches
-            case 7: {   keyboard_enable = false;}
+            case 7: 	displayHelp(); break;
             // case 8 - Turns off program
 			case 8: {   isOperating=false; break;}
-            // case 66 - execute order 66: quit the program
-			//case 66: {  isOperating=false; break;}
 			//show error in input
 			default:{   printf("Invalid character. Please reenter. \n");
                         printf("To display help, enter 'help'.\n");
                     }
 		}
-		if(!isOperating||keyboard_enable)
+		if(!isOperating)
             pthread_exit(NULL);
     }
 }
