@@ -341,7 +341,6 @@ void* WaveGenManager (void * pointer){
                 pthread_create(&tid, NULL, &PushDAC, (void *)&DAC);
             }
         }
-
     }
 }
 
@@ -359,6 +358,8 @@ void * PeripheralInputs(void *pointer){
 	float temp;
 	ChangeField CField;
 	while(1){
+        if(!isOperating)
+            pthread_exit(NULL);
 		setChangeField(&CField);
 		temp=0;
 		count = 0x00;
