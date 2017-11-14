@@ -89,6 +89,19 @@ uint16_t old_adc_in[2] = {};
 //Mutex (only one to change DAC variables)
 pthread_mutex_t MainMutex = PTHREAD_MUTEX_INITIALIZER;
 
+
+//*************************************************************//
+//                          Signal
+//*************************************************************//
+void signal_handler(int signum){
+    isOperating = false;
+
+    printf("\f");
+    printf("Shutting down...");
+    printf(".\n");
+}
+
+
 //*************************************************************//
 //                          Functions
 //*************************************************************//
@@ -500,10 +513,7 @@ int checkInput(char* in) {
     temp = strtol(in, &endptr, 10);
     // check if valid integer is inputted
     if(*endptr == '\0'){
-        if(temp>0 && temp <7)
-            return temp;
-        else if(temp==7)
-            return 66;
+        return temp;
     }
 
     /*			--deprecated--
@@ -847,8 +857,8 @@ void* MainIO (void *pointer){
 			case 6: {   stopOps(); break; }
             // case 7 - display help
 			case 7: {   displayHelp(); break; }
-            // case 66 - execute order 66: quit the program
-			case 66: {  isOperating=false; break; }
+            // case 8 - execute order 66: quit the program
+			case 8: {  isOperating=false; break; }
 			//show error in input
 			default:{   printf("Invalid character. Please reenter. \n");
                         printf("To display help, enter 'help'.\n");
@@ -878,6 +888,7 @@ int main(int argc, char** argv) {
     pthread_attr_t attr;
     pthread_t thread[3];
 
+    signal(SIGINT, signal_handler);
     //Call command line manager
     CLManager (argc, argv);
 
