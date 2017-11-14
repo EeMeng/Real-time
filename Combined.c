@@ -115,6 +115,9 @@ void changeParam();
 void stopOps();
 void* MainIO (void *pointer);
 
+//Signal
+void signal_handler(int signum);
+
 //Utilities
 void change(bool onSignal, int wvty, float f, float m, float a);
 bool hasNegative();
@@ -188,6 +191,7 @@ int main(int argc, char** argv) {
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
+    signal(SIGINT, signal_handler);
     init();
 
     //Call command line manager
@@ -241,6 +245,15 @@ void change(bool onSignal, int wvty, float f, float m, float a){
     DAC.isOn=onSignal;
 }
 
+//*************************************************************//
+//                          Signal
+//*************************************************************//
+void signal_handler(int signum)
+{
+	isOperating = false;
+	printf("\f");
+	printf("Exiting...\n");
+}
 
 //*************************************************************//
 //                Command line argument manager
