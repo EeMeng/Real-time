@@ -140,7 +140,7 @@ void setChangeField(ChangeField* CF){
    isOperating flag will reset(0) when user reconfirms by
    entering 'Y/y'. If not, the current process will return to
    MainIO, no matter at which point the program was at. For
-   this, toReturn flag is used and placed at all possible
+   this, toReturn flag is used and checked at all possible
    stopping points.
 */
 void  INThandler(int sig){
