@@ -140,7 +140,7 @@ void setChangeField(ChangeField* CF){
    isOperating flag will reset(0) when user reconfirms by
    entering 'Y/y'. If not, the current process will return to
    MainIO, no matter at which point the program was at. For
-   this, toReturn flag is used and checked at all possible
+   this, toReturn flag is used and placed at all possible
    stopping points.
 */
 void  INThandler(int sig){
@@ -886,9 +886,10 @@ void* MainIO (void *pointer){
     sleep(1);  //wait for WaveGenManager to finish its configuration
     while (1) {
         delay(800);
-        toReturn = false;
         ctrlc_sleep();
         displayHelp();
+        if(ctrlc_pressed==false)
+            toReturn = false;
 		getInput(&input[0]);
         if(toReturn) continue;
 		switch (checkInput(&input[0])) {
@@ -908,7 +909,6 @@ void* MainIO (void *pointer){
 			case 66: {  isOperating=false; break; }
 			//show error in input
 			default:{   printf("Invalid character. Please reenter. \n");
-                        printf("To display help, enter 'help'.\n");
                     }
 		}
 		if(!isOperating)
