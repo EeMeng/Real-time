@@ -7,14 +7,14 @@
  * Version              :    1.0
 
  * This program generates waveform (sine, triangular, square) wave on PCI-DAS 1602
-   board. Maximum frequency achievable is 1750Hz while minimum and maximum output
-   voltages are -10 and 10V respectively.
+ * board. Maximum frequency achievable is 1750Hz while minimum and maximum output
+ * voltages are -10 and 10V respectively.
 
  * Input variables: 1. Waveform type
-                    2. Frequency
-                    3. Mean
-                    4. Amplitude
-                    5. isOn flag
+ *                  2. Frequency
+ *                  3. Mean
+ *                  4. Amplitude
+ *                  5. isOn flag
 
  * To change variables through arguments, the following order must be met:
  * Format:  <program_name.exe> <waveform type> <frequency> <mean> <amplitude> <isOn>
