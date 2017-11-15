@@ -251,8 +251,13 @@ void change(bool onSignal, int wvty, float f, float m, float a){
 void signal_handler(int signum)
 {
 	isOperating = false;
+	pthread_mutex_lock(&PushMutex);
+	DAC.isOn = false;
+	pthread_mutex_unlock(&PushMutex);
 	printf("\f");
 	printf("Exiting...\n");
+	delay(1000);
+	exit(0);
 }
 
 //*************************************************************//
@@ -502,6 +507,7 @@ ChangeField CField;
 int truth = 0;
 while(1)
 {
+  	if(!isOperating) return;
   	setChangeField(&CField);
     //printf("\nDIO Functions\n");
     out8(DIO_CTLREG,0x90);                  // Port A : Input,  Port B : Output,  Port C (upper | lower) : Output | Output
@@ -545,7 +551,6 @@ while(1)
             case 3:    	printf("Selection: Square Wave\n"); break;
             default:    printf("Invalid Option!\n"); break;
         }
-    }
     switch(dio_in & 0x04)
     {
     	case 0x04: printf("Varying: Mean\n"); break;
@@ -553,6 +558,8 @@ while(1)
     }
     printf("Mean:%f, Amp: %f, Freq: %f\n", DAC.mean, DAC.amp, DAC.freq);
     ADC_Refresh = false;
+    }
+    
     delay(100);
 }
     return;
@@ -703,7 +710,7 @@ void importConfig(){
         printf("Failed to open %s.\n", filename);
         return;
     }
-    input[0]=&source;
+    input[0]=(char *) &source;
     input[j]=&buffer[0];
     while(1){
         if(isNull){
@@ -723,7 +730,7 @@ void importConfig(){
         i++;
     }
     pthread_mutex_lock(&MainMutex);
-    CLManager(j, &input);
+    CLManager(j, (char**) &input);
     pthread_mutex_unlock(&MainMutex);
     fflush(fd);
     close((int)fd);
@@ -804,6 +811,7 @@ void changeParam(){
     float temp;
     char *pointer;
     do{
+            printf("\f");
             printf("DAC0 selected.\n");
             setChangeField(&CField);
             printf("\nCurrent OFF/ON (0/1) status: %d\n", CField.isOn);
@@ -922,26 +930,26 @@ void* MainIO (void *pointer){
     char input10[10];
     char* input = input10;
     sleep(1);  //wait for WaveGenManager to finish its configuration
+    printf("\f");
     while (1) {
             delay(500);
-            printf("\f");
     	displayHelp();
 		getInput(input);
 		switch (checkInput(input)) {
 		    // case 1 - print current devices' configurations.
 			case 1: {   showConfig(); break; }
             // case 2 - print current devices' statuses.
-			case 2: {   switches();       break; }
+			case 2: {   switches(); printf("\f"); break; }
 			// case 3 - change the configurations.
-			case 3: {   changeParam();       break; }
+			case 3: {   changeParam(); printf("\f"); break; }
 			// case 4 - export configurations or waveforms.
-			case 4: {   exportConfig();  break; }
+			case 4: {   exportConfig(); printf("\f");  break; }
 			// case 5 - import configurations.
-			case 5: {   importConfig();  break; }
+			case 5: {   importConfig(); printf("\f"); break; }
 			// case 6 - halt all operations.
 			case 6: {   stopOps(); break; }
             // case 7 - Switch to switches
-            case 7: 	displayHelp(); break;
+            case 7: 	displayHelp(); printf("\f"); break;
             // case 8 - Turns off program
 			case 8: {   isOperating=false; break;}
 			//show error in input
