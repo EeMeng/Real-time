@@ -1198,7 +1198,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    //exit message and clean screen	printf("Process quitting in 3 second...");
+    //exit message and clean screen
+    printf("Process quitting in 3 second...");
     fflush(stdout);
     system("clear");
 	sleep(3);
