@@ -5,7 +5,7 @@
 			Joyce Lim Xin Yan (U1521972L)
 			Tan Jin Cai (U1421759E)
 			Joseph Ng Rong En (U1422346L)
-			Phillip Puan Jun Kit (U1420409F)
+			Philip Puan Jun Kit (U1420409F)
 
  * Date of creation     :    26/10/2017
  * Updated              :    17/11/2017
