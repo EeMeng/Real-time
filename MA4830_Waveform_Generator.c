@@ -107,7 +107,7 @@
 #define PI              acos(-1)
 
 #define HIGHESTFREQ     1750
-#define FIFO_DELAY      6500
+#define FIFO_DELAY      6500					//Empirical value for delay of DAC push FIFO operation
 
 #define THRESHOLD		30
 
