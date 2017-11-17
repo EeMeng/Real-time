@@ -143,7 +143,7 @@ uintptr_t iobase[5];
 
 // Program global variables
 bool isOperating=true;			//boolean for program operation. False shutsdown the program.
-bool ctrlc_pressed=false;		//boolean for SIGNINT. Used in checkQuit. 
+bool ctrlc_pressed=false;		//boolean for SIGNINT. Used in checkQuit.
 bool toReturn = false;			//boolean for returning to MainIO(thread) after scanf. Used with Signal.
 bool ADC_Refresh = true;		//boolean for refreshing ADC/GPIO display
 
@@ -174,7 +174,7 @@ void stopOps();								//Stop operation of DAC (will turn on again if the switch
 void getInput(char* in);					//Get input from keyboard
 int checkInput(char* in);					//Check the input validity in MainIO
 float checkValidFloat();					//Check validity of floating point number
-											
+
 // Quit signal
 
 void checkQuit(char ch);					//Reconfirm with user about quitting after SIGINT (Refer to function for more description)
@@ -189,12 +189,12 @@ void setChangeField(ChangeField* CF);		//Set the change field to be equal to ini
 
 /******* Thread functions declaration *******/
 // Peripherals (GPIO and ADC)
-void* PeripheralInputs(void *pointer);		//Thread for GPIO and ADC 
+void* PeripheralInputs(void *pointer);		//Thread for GPIO and ADC
 
 // DAC
 void* WaveGenManager (void * pointer);		//Thread for managing waveform generating capabilities
 void WaveformGen ();						//Generate data for waveform
-void chooseBestRes();						/*Change the bipolar/unipolar mode based on mean and amplitude 
+void chooseBestRes();						/*Change the bipolar/unipolar mode based on mean and amplitude
 											to give best resolution*/
 void* PushDAC (void* Curr);					//Thread to push-out data to DAC asynchronously
 
@@ -216,10 +216,10 @@ int main(int argc, char** argv) {
 
     pthread_attr_t attr;
     pthread_t thread[3];
-    
+
     // Invoke Signal
 	signal(SIGINT, INThandler);
-    
+
     // Call command line manager
     CLManager (argc, argv);
 
@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
     */
     delay(1500);
     system("clear");
-	
+
     for(i=0;i<3;i++){
         switch (i){
             case 0:{rc = pthread_create(&thread[i], &attr, &WaveGenManager, NULL);
@@ -418,7 +418,7 @@ void showADCStatus(){
             break;
         }
 		delay(1000);
-		/* Get user's confirmation character and return to 
+		/* Get user's confirmation character and return to
 		MainIO if CTRL+C is pressed  */
         if(toReturn){
             getInput(&input[0]);
@@ -505,7 +505,7 @@ void importConfig(){
     pthread_mutex_lock(&MainMutex);
     CLManager(j, (char**) &input);
     pthread_mutex_unlock(&MainMutex);
-	// Close file and print confirmation message 
+	// Close file and print confirmation message
     fflush(fd);
     fclose(fd);
     printf("\nConfiguration from %s is loaded.\n", filename);
@@ -640,7 +640,7 @@ void changeParam(){
                             CField.freq=temp;
                             printf("\nChanged freq of DAC[0]\n");
                     }
-                    else{                        
+                    else{
                     	if(toReturn) return;
                         printf("Error: Frequency is not changed.\n");
                     }
@@ -660,7 +660,7 @@ void changeParam(){
                             CField.mean=temp;
                             printf("\nChanged mean of DAC[0]\n");
                         }
-                        else{                        
+                        else{
                         	if(toReturn) return;
                             printf("Mean value is not changed.\n");
                         }
@@ -680,7 +680,7 @@ void changeParam(){
                             CField.amp=temp;
                             printf("\nChanged amplitude of DAC[0]\n");
                         }
-                        else{                        
+                        else{
                         	if(toReturn) return;
                             printf("Amplitude value is not changed.\n");
                         }
@@ -727,7 +727,7 @@ void changeParam(){
                     CField.isOn=false;
                     break;
                 }
-                default: { 
+                default: {
                 	if(toReturn) return;
                     printf("\nInvalid choice.\n");
                 }
@@ -741,11 +741,11 @@ void changeParam(){
                 	pthread_mutex_unlock(&MainMutex);
 					// Reset hasChanged flag
                 	hasChanged = false;
-            	}	
+            	}
              	// Wait for WaveGenManger to finish
        			delay(50);
         	}
-        }	
+        }
         if(toReturn) return;
 		// Ask user whether to repeat changeParam
         printf("\nDo you want to change other parameters? (Y/N): ");
@@ -823,11 +823,11 @@ void checkQuit(char ch){
 /* SIGINT handler function
 
 When CTRL+C is pressed, INThandler is started.
-INThandler sets toReturn and ctrlc_pressed flags. 
+INThandler sets toReturn and ctrlc_pressed flags.
 Confirmation to quit is asked and INTHandler quits.
 
 Meanwhile, MainIO stops at getInput (waits user
-input). 
+input).
 
 getInput will receive input regardless of said
 flags settings. After receiving input, toReturn
@@ -844,10 +844,10 @@ void  INThandler(int sig){
              "Do you really want to quit? (Y/y to quit): \n");
 }
 
-// Manages arguments 
+// Manages arguments
 void CLManager (int argc, char **argv){
     int counter, temp2;
-    float temp;   
+    float temp;
     ChangeField CField;
     char* endptr;
 	// Load CField with default DAC values
@@ -1157,7 +1157,7 @@ void * PeripheralInputs(void *pointer){
 				if (mean_amp == 1) {
 					temp = (float)(adc_in[0]) * 10 / 65535;
 					// Range checking
-					if (fabs(DAC.mean + temp) < 9.5 && fabs(DAC.mean - temp) < 9.5) {
+					if (fabs(DAC.mean + temp) < 9.8 && fabs(DAC.mean - temp) < 9.8) {
 						CField.amp = temp;
 						hasChanged = true;
 					}
@@ -1166,7 +1166,7 @@ void * PeripheralInputs(void *pointer){
 				else {
 					temp = (float)(adc_in[0]) * 10 / 32767 - 10;
 					// Range checking
-					if (fabs(DAC.amp + temp) < 9.5 && fabs(DAC.amp - temp) < 9.5) {
+					if (fabs(DAC.amp + temp) < 9.8 && fabs(DAC.amp - temp) < 9.8) {
 						CField.mean = temp;
 						hasChanged = true;
 					}
@@ -1184,7 +1184,7 @@ void * PeripheralInputs(void *pointer){
 					hasChanged = true;
 				}
 			}
-			
+
 			// Change the value(s) if hasChanged flag is set
 			if (hasChanged) {
 			    ADC_Refresh = true;
