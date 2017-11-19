@@ -27,7 +27,7 @@
  * e.g:  ./wavegen -sin 1000.3 2.4 5 1
 
  * The user can change the DAC parameters (waveform properties) from keyboard
- * (MainIO) and switches & potentiometer (PeripheralInput). However, only one
+ * (MainUI) and switches & potentiometer (PeripheralInput). However, only one
  * device can change parameters at a time. PCI-DAS 1602's switches and ADC inputs
  * must be switched off before changing parameters through keyboard.
 
@@ -49,7 +49,7 @@
  * 1. Main thread - Initialise communications with PCI-DAS 1602 board,
  *                  create thread 2-4 and wait for them to finish
  *                  (pthread_join) before quitting the program.
- * 2. MainIO thread -   Interface with users with keyboard and display,
+ * 2. MainUI thread -   Interface with users with keyboard and display,
  *                      display real-time DAC and ADC status,
  *                      change DAC parameters from keyboard,
  *                      import and export DAC configuration, and
@@ -144,7 +144,7 @@ uintptr_t iobase[5];
 // Program global variables
 bool isOperating=true;			//boolean for program operation. False shutsdown the program.
 bool ctrlc_pressed=false;		//boolean for SIGNINT. Used in checkQuit.
-bool toReturn = false;			//boolean for returning to MainIO(thread) after scanf. Used with Signal.
+bool toReturn = false;			//boolean for returning to MainUI(thread) after scanf. Used with Signal.
 bool ADC_Refresh = true;		//boolean for refreshing ADC/GPIO display
 
 // DACField struct global variables
@@ -163,7 +163,7 @@ pthread_mutex_t MainMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // UI functionalities
 void CLManager (int argc, char **argv);		//Manages Command line
-void displayHelp();							//Display instructions for MainIO
+void displayHelp();							//Display instructions for MainUI
 void showDACConfig();						//Show current DAC configuration
 void showADCStatus();						//Show ADC status
 void importConfig();						//Import the configuration from .txt file
@@ -186,13 +186,13 @@ void chooseBestRes();						/*Change the bipolar/unipolar mode based on mean and 
 											to give best resolution*/
 long interval(struct timespec* start, struct timespec* end); // Used for calculating nanosec difference between timespec
 void getInput(char* in);					//Get input from keyboard
-int checkInput(char* in);					//Check the input validity in MainIO
+int checkInput(char* in);					//Check the input validity in MainUI
 float checkValidFloat();					//Check validity of floating point number
 int checkValidInt();					//Check validity of integer
 
 /******* Thread functions declaration *******/
 // User Interface
-void* MainIO (void *pointer);				//General purpose thread for inputting from keyboard
+void* MainUI (void *pointer);				//General purpose thread for inputting from keyboard
 
 // Peripherals (GPIO and ADC)
 void* PeripheralInputs(void *pointer);		//Thread for GPIO and ADC
@@ -290,7 +290,7 @@ int main(int argc, char** argv) {
         switch (i){
             case 0:{rc = pthread_create(&thread[i], &attr, &WaveGenManager, NULL);
                     break;}
-            case 1:{rc = pthread_create(&thread[i], &attr, &MainIO, NULL);
+            case 1:{rc = pthread_create(&thread[i], &attr, &MainUI, NULL);
                     break;}
             case 2:{rc = pthread_create(&thread[i], &attr, &PeripheralInputs, NULL);
                     break;}
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
     }
     pthread_attr_destroy(&attr);
 
-    // Joining MainIO input
+    // Joining MainUI input
     for(i=0;i<3;i++){
         rc = pthread_join(thread[i], NULL);
         if (rc){
@@ -355,7 +355,7 @@ void getInput(char* in) {
     }
     return;
 }
-//Check the input validity in MainIO
+//Check the input validity in MainUI
 int checkInput(char* in) {
     int temp=0;
     char* endptr;
@@ -399,7 +399,7 @@ void showADCStatus(){
 	supervise real-time changes on DAC  */
 	printf("\nDo you want to show DAC config? (Y/N): ");
     getInput(&input[0]);
-	/* Return to MainIO if CTRL+C is pressed (same applies for
+	/* Return to MainUI if CTRL+C is pressed (same applies for
 	subsequent similar statements)   */
     if(toReturn)
         return;
@@ -420,7 +420,7 @@ void showADCStatus(){
         }
 		delay(1000);
 		/* Get user's confirmation character and return to
-		MainIO if CTRL+C is pressed  */
+		MainUI if CTRL+C is pressed  */
         if(toReturn){
             getInput(&input[0]);
             return;
@@ -783,7 +783,7 @@ void changeParam(){
         else if (input[0]=='n' ||input[0]=='N')
             isRepeat=false;
         else{
-            printf("Invalid choice. Returning to main IO.\n");
+            printf("Invalid choice. Returning to main UI.\n");
             isRepeat=false;
         }
         printf("\f");
@@ -799,14 +799,14 @@ void stopOps(){
     return;
 }
 //The general purpose thread for inputting from keyboard
-void* MainIO (void *pointer){
+void* MainUI (void *pointer){
     char input[10];
     sleep(1);  // Wait for WaveGenManager to finish its configuration
     while (1) {
 		// Exit thread if isOperating is false
         if(!isOperating)
             pthread_exit(NULL);
-		// Reset toReturn flag only when program reaches MainIO
+		// Reset toReturn flag only when program reaches MainUI
         if(ctrlc_pressed==false)
             toReturn = false;
         delay(100);
@@ -853,7 +853,7 @@ When CTRL+C is pressed, INThandler is started.
 INThandler sets toReturn and ctrlc_pressed flags.
 Confirmation to quit is asked and INTHandler quits.
 
-Meanwhile, MainIO stops at getInput (waits user
+Meanwhile, MainUI stops at getInput (waits user
 input).
 
 getInput will receive input regardless of said
